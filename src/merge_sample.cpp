@@ -23,6 +23,7 @@ void run_merge_with_drop(std::string how);
 void run_merge_sequencial_for_addr_track();
 void run_merge_sequencial_with_key(std::string how);
 void run_merge_sequencial_with_loss(std::string how);
+void run_merge_sequencial_without_key(std::string how);
 
 int main(int argc, char ** argvs)
 {
@@ -41,7 +42,8 @@ int main(int argc, char ** argvs)
 //   run_merge_sequencial_for_addr_track();
 
 //   run_merge_sequencial_with_key("inner");
-  run_merge_sequencial_with_loss("inner");
+  run_merge_sequencial_without_key("inner");
+  // run_merge_sequencial_with_loss("inner");
   return 0;
 }
 
@@ -70,9 +72,11 @@ void run_merge(std::string how)
   right_data.emplace_back(RecordBase({{"stamp_", 5}, {"value", 3}}));
   right_data.emplace_back(RecordBase({{"stamp_", 6}, {"value", 4}}));
 
-  auto merged_records = left_records._merge(
+  auto merged_records = left_records.merge(
     right_records,
     "value",
+    "value",
+    {"stamp", "value", "stamp"},
     how
   );
 
@@ -96,9 +100,11 @@ void run_merge_with_drop(std::string how)
   right_data.emplace_back(RecordBase({{"other_stamp_", 10}}));
   right_data.emplace_back(RecordBase({{"other_stamp_", 14}}));
 
-  auto merged_records = left_records._merge(
+  auto merged_records = left_records.merge(
     right_records,
     "value",
+    "value",
+    {"other_stamp", "stamp", "value", "other_stamp_", "stamp_"},
     how
   );
 
@@ -126,7 +132,7 @@ void run_merge_sequencial_for_addr_track()
   sink_data.emplace_back(RecordBase({{"sink_addr", 13}, {"sink_stamp", 12}}));
   sink_data.emplace_back(RecordBase({{"sink_addr", 13}, {"sink_stamp", 22}}));
 
-  auto merged_records = source_records._merge_sequencial_for_addr_track(
+  auto merged_records = source_records.merge_sequencial_for_addr_track(
     "source_stamp",
     "source_addr",
     copy_records,
@@ -157,9 +163,33 @@ void run_merge_sequencial_with_key(std::string how)
   right_data.emplace_back(RecordBase({{"key", 1}, {"sub_stamp", 4}}));
   right_data.emplace_back(RecordBase({{"key", 2}, {"sub_stamp", 5}}));
 
-  auto merged_records = left_records._merge_sequencial(
+  auto merged_records = left_records.merge_sequencial(
     right_records, "stamp", "sub_stamp", "key",
+    "key", {"key", "stamp", "sub_stamp"},
     how);
+
+  print_records(merged_records);
+}
+
+void run_merge_sequencial_without_key(std::string how)
+{
+  RecordsBase left_records;
+  auto & left_data = *left_records.data_;
+  left_data.emplace_back(RecordBase({{"stamp", 0}}));
+  left_data.emplace_back(RecordBase({{"stamp", 3}}));
+  left_data.emplace_back(RecordBase({{"stamp", 4}}));
+  left_data.emplace_back(RecordBase({{"stamp", 5}}));
+  left_data.emplace_back(RecordBase({{"stamp", 8}}));
+
+  RecordsBase right_records;
+  auto & right_data = *right_records.data_;
+  right_data.emplace_back(RecordBase({{"sub_stamp", 1}}));
+  right_data.emplace_back(RecordBase({{"sub_stamp", 6}}));
+  right_data.emplace_back(RecordBase({{"sub_stamp", 7}}));
+
+  auto merged_records = left_records.merge_sequencial(
+    right_records, "stamp", "sub_stamp",
+    "", "", {"stamp", "sub_stamp"}, how);
 
   print_records(merged_records);
 }
@@ -181,8 +211,9 @@ void run_merge_sequencial_with_loss(std::string how)
   right_data.emplace_back(RecordBase({{"other_stamp_", 10}}));
   right_data.emplace_back(RecordBase({{"other_stamp_", 14}}));
 
-  auto merged_records = left_records._merge_sequencial(
-    right_records, "stamp", "sub_stamp", "key",
+  auto merged_records = left_records.merge_sequencial(
+    right_records, "stamp", "sub_stamp", "value", "value",
+    {"other_stamp", "stamp", "value", "other_stamp_"},
     how);
 
   print_records(merged_records);

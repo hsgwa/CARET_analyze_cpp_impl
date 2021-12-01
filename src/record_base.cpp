@@ -59,7 +59,7 @@ void RecordBase::change_dict_key(std::string key_from, std::string key_to)
   columns_.insert(key_to);
 }
 
-void RecordBase::_drop_columns(std::vector<std::string> keys)
+void RecordBase::drop_columns(std::vector<std::string> keys)
 {
   for (auto & key : keys) {
     data_.erase(key);
@@ -78,7 +78,7 @@ void RecordBase::add(std::string key, uint64_t stamp)
   data_[key] = stamp;
 }
 
-void RecordBase::_merge(const RecordBase & other)
+void RecordBase::merge(const RecordBase & other)
 {
   for (auto & pair : other.data_) {
     add(pair.first, pair.second);
