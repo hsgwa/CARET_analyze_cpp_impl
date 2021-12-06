@@ -48,6 +48,7 @@ PYBIND11_MODULE(record_cpp_impl, m) {
   .def("add", &RecordBase::add)
   .def("drop_columns", &RecordBase::drop_columns)
   .def("get", &RecordBase::get)
+  .def("get_with_default", &RecordBase::get_with_default)
   .def_property_readonly("data", &RecordBase::get_data)
   .def_property_readonly("columns", &RecordBase::get_columns);
 
@@ -75,6 +76,7 @@ PYBIND11_MODULE(record_cpp_impl, m) {
   .def("reindex", &RecordsBase::reindex)
   .def("concat", &RecordsBase::concat)
   .def("sort", &RecordsBase::sort)
+  .def("sort_column_order", &RecordsBase::sort_column_order)
   .def("merge", &RecordsBase::merge)
   .def("merge_sequencial", &RecordsBase::merge_sequencial)
   .def("bind_drop_as_delay", &RecordsBase::bind_drop_as_delay)

@@ -101,9 +101,9 @@ RecordsBase::RecordsBase(std::string json_path)
   }
 }
 
-void RecordsBase::bind_drop_as_delay(const std::string sort_key)
+void RecordsBase::bind_drop_as_delay()
 {
-  this->sort(sort_key, "", false);
+  sort_column_order(false, false);
 
   std::unordered_map<std::string, uint64_t> oldest_values;
 
@@ -120,7 +120,7 @@ void RecordsBase::bind_drop_as_delay(const std::string sort_key)
     }
   }
 
-  this->sort(sort_key, "", true);
+  sort_column_order(true, true);
 }
 
 void RecordsBase::append(const RecordBase & other)
@@ -128,9 +128,14 @@ void RecordsBase::append(const RecordBase & other)
   data_->push_back(other);
 }
 
-void RecordsBase::append_column(const std::string column)
+void RecordsBase::append_column(const std::string column, const std::vector<uint64_t> values)
 {
   columns_->push_back(column);
+  for (size_t i = 0; i < data_->size(); i++) {
+    auto & record = (*data_)[i];
+    auto & value = values[i];
+    record.add(column, value);
+  }
 }
 
 RecordsBase RecordsBase::clone()
@@ -270,6 +275,71 @@ void RecordsBase::sort(std::string key, std::string sub_key, bool ascending)
   std::sort(data_->begin(), data_->end(), RecordComp{key, sub_key, ascending});
 }
 
+class RecordCompColumnOrder
+{
+public:
+  RecordCompColumnOrder(
+    std::vector<std::string> columns,
+    bool ascending,
+    bool put_none_at_top
+  )
+  : columns_(columns), ascending_(ascending)
+  {
+    if (ascending_) {
+      if (put_none_at_top) {
+        default_value_ = UINT64_MAX;
+      } else {
+        default_value_ = 0;
+      }
+    } else {
+      if (put_none_at_top) {
+        default_value_ = 0;
+      } else {
+        default_value_ = UINT64_MAX;
+      }
+    }
+  }
+
+  bool operator()(const RecordBase & a, const RecordBase & b) const noexcept
+  {
+    if (ascending_) {
+      for (auto & column : columns_) {
+        auto left = a.get_with_default(column, default_value_);
+        auto right = b.get_with_default(column, default_value_);
+        if (left < right) {
+          return true;
+        } else if (left > right) {
+          return false;
+        }
+      }
+      return true;
+    } else {
+      for (auto & column : columns_) {
+        auto left = a.get_with_default(column, default_value_);
+        auto right = b.get_with_default(column, default_value_);
+        if (left > right) {
+          return true;
+        } else if (left < right) {
+          return false;
+        }
+      }
+      return true;
+    }
+  }
+
+private:
+  std::vector<std::string> columns_;
+  bool ascending_;
+  uint64_t default_value_;
+};
+
+void RecordsBase::sort_column_order(bool ascending, bool put_none_at_top)
+{
+  std::sort(
+    data_->begin(),
+    data_->end(), RecordCompColumnOrder{*columns_, ascending, put_none_at_top});
+}
+
 
 RecordsBase RecordsBase::merge(
   const RecordsBase & right_records,
@@ -295,16 +365,16 @@ RecordsBase RecordsBase::merge(
   auto column_join_key = "_tmp_merge_join_key";
   auto column_found_right_record = "_tmp_merge_found_right_record";
 
-  left_records_copy.append_column(column_side);
-  right_records_copy.append_column(column_side);
 
-  for (auto & left_record : *left_records_copy.data_) {
-    left_record.add(column_side, Left);
-  }
+  left_records_copy.append_column(
+    column_side,
+    std::vector<uint64_t>(left_records_copy.data_->size(), Left)
+  );
 
-  for (auto & right_record : *right_records_copy.data_) {
-    right_record.add(column_side, Right);
-  }
+  right_records_copy.append_column(
+    column_side,
+    std::vector<uint64_t>(right_records_copy.data_->size(), Right)
+  );
 
   auto concat_columns = UniqueList();
   concat_columns.add_columns(*left_records_copy.columns_);
@@ -426,15 +496,15 @@ RecordsBase RecordsBase::merge_sequencial(
   auto column_merge_stamp = "_merge_tmp_merge_stamp";
   auto column_has_merge_stamp = "_merge_tmp_has_merge_stamp";
 
-  left_records_copy.append_column(column_side);
-  for (auto & left_record : *left_records_copy.data_) {
-    left_record.add(column_side, Left);
-  }
+  left_records_copy.append_column(
+    column_side,
+    std::vector<uint64_t>(left_records_copy.data_->size(), Left)
+  );
 
-  right_records_copy.append_column(column_side);
-  for (auto & right_record : *right_records_copy.data_) {
-    right_record.add(column_side, Right);
-  }
+  right_records_copy.append_column(
+    column_side,
+    std::vector<uint64_t>(right_records_copy.data_->size(), Right)
+  );
 
   auto concat_columns = UniqueList();
   concat_columns.add_columns(*left_records_copy.columns_);
@@ -629,28 +699,40 @@ RecordsBase RecordsBase::merge_sequencial_for_addr_track(
   auto copy_records_ = RecordsBase(copy_records);
   auto sink_records_ = RecordsBase(sink_records);
 
-  source_records_.append_column(column_type);
-  source_records_.append_column(column_timestamp);
+  source_records_.append_column(
+    column_type,
+    std::vector<uint64_t>(source_records_.data_->size(), Source)
+  );
 
-  copy_records_.append_column(column_type);
-  copy_records_.append_column(column_timestamp);
+  copy_records_.append_column(
+    column_type,
+    std::vector<uint64_t>(copy_records_.data_->size(), Copy)
+  );
 
-  sink_records_.append_column(column_type);
-  sink_records_.append_column(column_timestamp);
+  sink_records_.append_column(
+    column_type,
+    std::vector<uint64_t>(sink_records_.data_->size(), Sink)
+  );
 
+  std::vector<uint64_t> source_stamps;
+  std::vector<uint64_t> sink_stamps;
   for (auto & record : *source_records_.data_) {
-    record.add(column_type, Source);
-    record.add(column_timestamp, record.get(source_stamp_key));
-  }
-  for (auto & record : *copy_records_.data_) {
-    record.add(column_type, Copy);
-    record.add(column_timestamp, record.get(copy_stamp_key));
+    source_stamps.emplace_back(record.get(source_stamp_key));
   }
   for (auto & record : *sink_records_.data_) {
-    record.add(column_type, Sink);
-    record.add(column_timestamp, record.get(sink_stamp_key));
+    sink_stamps.emplace_back(record.get(sink_stamp_key));
   }
 
+  source_records_.append_column(column_timestamp, source_stamps);
+
+  copy_records_.rename_columns(
+    std::unordered_map<std::string, std::string>(
+  {
+    {copy_stamp_key, column_timestamp}
+  })
+  );
+
+  sink_records_.append_column(column_timestamp, sink_stamps);
 
   auto merged_columns = UniqueList();
   merged_columns.add_columns(*source_records_.columns_);

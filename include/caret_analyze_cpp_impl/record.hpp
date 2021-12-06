@@ -38,6 +38,7 @@ public:
   bool equals(const RecordBase & other) const;
   void merge(const RecordBase & other);
   uint64_t get(std::string key) const;
+  uint64_t get_with_default(std::string key, uint64_t default_value) const;
   void add(std::string key, uint64_t stamp);
   void drop_columns(std::vector<std::string> keys);
 
@@ -61,7 +62,7 @@ public:
   std::vector<std::string> get_columns() const;
 
   void append(const RecordBase & other);
-  void append_column(const std::string column);
+  void append_column(const std::string column, const std::vector<uint64_t> values);
   bool equals(const RecordsBase & other) const;
   RecordsBase clone();
   void drop_columns(std::vector<std::string> column_names);
@@ -69,7 +70,8 @@ public:
   void concat(const RecordsBase & other);
   void filter_if(std::function<bool(RecordBase)> & f);
   void sort(std::string key, std::string sub_key = "", bool ascending = true);
-  void bind_drop_as_delay(const std::string key);
+  void sort_column_order(bool ascending = true, bool put_none_at_top = true);
+  void bind_drop_as_delay();
   void reindex(std::vector<std::string> columns);
 
   RecordsBase merge(
